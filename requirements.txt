@@ -1,0 +1,9 @@
+requests
+beautifulsoup4
+openai
+faiss-cpu
+tiktoken
+langchain
+streamlit
+langchain-community
+langchain-openai
