@@ -11,15 +11,13 @@ from twilio.rest import Client
 
 # === Twilio Sandbox конфигурация ===
 
-TWILIO_ACCOUNT_SID=st.secrets["TWILIO_SID"],
-TWILIO_AUTH_TOKEN=st.secrets["TWILIO_TOKEN"],
+TWILIO_ACCOUNT_SID=st.secrets["TWILIO_SID"]
+TWILIO_AUTH_TOKEN=st.secrets["TWILIO_TOKEN"]
 TWILIO_WHATSAPP_SANDBOX=st.secrets["WHATSAPP_SANDBOX"]
 
 # ✅ Кому отправлять (временно только себе)
 AGENT_WHATSAPP_NUMBERS = [
-    "whatsapp:+79110057195",
-    
-    
+    "whatsapp:+79110057195"
 ]
 
 def enviar_whatsapp_agentes(mensaje):
