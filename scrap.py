@@ -2,72 +2,69 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
-import time
 import json
-from collections import Counter
+import time
 
+# ✅ Настройки браузера
 options = Options()
-options.add_argument("--disable-gpu")
+options.add_argument("user-data-dir=C:/Users/jolypab/AppData/Local/Google/Chrome/User Data")
+options.add_argument("profile-directory=Default")
+options.add_argument("--start-maximized")
 options.add_argument("--no-sandbox")
-options.add_argument("--headless")
+options.add_argument("--disable-gpu")
 
 browser = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-wait = WebDriverWait(browser, 20)
 
-url = "https://century21mexico.com/v/resultados/oficina_501-apolo_local"
+# 🗂️ Все категории
+categories = [
+    "https://century21apolo.com/casas-en-venta/",
+    "https://century21apolo.com/departamentos-en-venta/",
+    "https://century21apolo.com/terrenos-en-venta/",
+    "https://century21apolo.com/venta-de-inmuebles-commerciales/",
+    "https://century21apolo.com/edificios-en-venta/",
+    "https://century21apolo.com/casas-en-renta/",
+    "https://century21apolo.com/departamentos-en-renta/",
+    "https://century21apolo.com/terrenos-en-renta/",
+    "https://century21apolo.com/renta-de-inmuebles-commerciales/",
+    "https://century21apolo.com/edificios-en-renta/"
+]
 
 all_links = []
 
-def close_cookie_banner():
-    try:
-        cookie_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Aceptar')]")))
-        cookie_button.click()
-        print("✅ Куки-баннер закрыт")
-    except:
-        print("ℹ️ Куки-баннер не найден")
+# 🔁 Обход всех категорий
+for cat_url in categories:
+    print(f"\n=== 📂 Категория: {cat_url} ===")
+    page = 1
+    while True:
+        url = cat_url if page == 1 else f"{cat_url}page/{page}/"
+        print(f"🔄 Загружаем: {url}")
+        browser.get(url)
+        time.sleep(3)
 
-page = 1
-while True:
-    full_url = url if page == 1 else f"https://century21mexico.com/v/resultados/pagina_{page}/oficina_501-apolo_local"
-    print(f"🔄 Загружаем страницу {page}: {full_url}")
-    browser.get(full_url)
-    time.sleep(5)
-    close_cookie_banner()
+        cards = browser.find_elements(By.XPATH, "//a[contains(@href, '/inmueble/')]")
+        links = [
+    a.get_attribute("href") 
+    for a in cards 
+    if a.get_attribute("href") 
+    and a.get_attribute("href").startswith("https://century21apolo.com/inmueble/")
+]
 
-    items = browser.find_elements(By.XPATH, "//a[contains(@href, '/propiedad/')]")
-    if not items:
-        print(f"⛔ Объявления закончились на {full_url}")
-        break
+        if not links:
+            print("⛔ Нет объявлений, переходим к следующей категории")
+            break
 
-    for item in items:
-        href = item.get_attribute("href")
-        if href:
-            all_links.append(href)
+        print(f"✅ Найдено: {len(links)}")
+        all_links.extend(links)
+        page += 1
 
-    print(f"✅ Найдено {len(items)} объявлений на стр. {page}")
-    page += 1
-
-# Анализ результатов
-print(f"\n📊 Всего найдено ссылок: {len(all_links)}")
-
-duplicates = [link for link, count in Counter(all_links).items() if count > 1]
-print(f"🔁 Дубликатов: {len(duplicates)}")
-
-if duplicates:
-    print("\n🔁 Примеры повторяющихся ссылок:")
-    for i, link in enumerate(duplicates[:10], 1):
-        print(f"{i}. {link}")
-
-
+# 🧹 Удаление дубликатов
 unique_links = list(set(all_links))
-print(f"✅ Уникальных ссылок: {len(unique_links)}")
+print(f"\n📊 Всего уникальных ссылок: {len(unique_links)}")
 
-with open("cancun_listings_scraped.json", "w", encoding="utf-8") as f:
-    json.dump(all_links, f, ensure_ascii=False, indent=2)
+# 💾 Сохраняем
+with open("apolo_all_listings_scraped.json", "w", encoding="utf-8") as f:
+    json.dump(unique_links, f, ensure_ascii=False, indent=2)
 
-print(f"✅ Сохранено {len(all_links)} уникальных ссылок в cancun_listings_scraped.json")
-
+print("🚀 Ссылки сохранены в apolo_all_listings_scraped.json")
 browser.quit()
