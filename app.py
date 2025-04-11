@@ -18,9 +18,7 @@ TWILIO_WHATSAPP_SANDBOX=st.secrets["WHATSAPP_SANDBOX"]
 # ✅ Кому отправлять (временно только себе)
 AGENT_WHATSAPP_NUMBERS = [
     "whatsapp:+79110057195",
-    "whatsapp:+529982779543",
-    "whatsapp:+5219982363432",
-    "whatsapp:+17138420775"
+    
     
 ]
 
