@@ -40,31 +40,40 @@ def get_related_images(question, answer):
     text_to_check = (question + " " + answer).lower()
     related_images = []
     
-    # Анализируем, какие конкретно изображения нужны
+    # Проверяем на точные совпадения сначала
     
-    # Если упоминается "figura 1" или "bisel" или "geometría" — показываем схемы биселя (imagen 1 и 3)
-    if any(word in text_to_check for word in ["figura 1", "bisel", "geometría", "detalle de junta"]):
-        # Показываем схемы (обычно это первое и последнее изображение)
-        related_images.extend([images_info[0]["filename"], images_info[-1]["filename"]])
-    
-    # Если упоминается "figura 2" или "процедура" или "técnica" — показываем техническую документацию
-    elif any(word in text_to_check for word in ["figura 2", "técnica", "procedimiento", "gtaw", "proceso"]):
-        # Показываем техническую документацию (обычно средние изображения)
+    # Проверка на figura 2 (должна быть ПЕРВОЙ, чтобы перехватить точное совпадение)
+    if "figura 2" in text_to_check:
         if len(images_info) > 1:
             related_images.append(images_info[1]["filename"])
+        return related_images
     
-    # Если спрашивают про все диаграммы или не можем определить конкретно
-    elif any(word in text_to_check for word in ["diagrama", "todas las figuras", "mostrar", "ver"]):
-        # Показываем все, но только если прямо просят
-        related_images = [img["filename"] for img in images_info]
+    # Проверка на figura 1
+    if "figura 1" in text_to_check:
+        related_images.extend([images_info[0]["filename"], images_info[-1]["filename"]])
+        return related_images
     
-    # Если AI говорит что не может показать, но есть ключевые слова — показываем первое изображение
-    elif any(phrase in answer.lower() for phrase in ["no tengo acceso", "no dispongo", "no puedo mostrar"]):
-        if any(word in text_to_check for word in ["figura", "imagen", "diagrama", "esquema"]):
+    # Если есть упоминание процедуры GTAW без конкретной фигуры
+    if any(word in text_to_check for word in ["gtaw", "proceso", "técnica"]) and "figura" not in text_to_check:
+        if len(images_info) > 1:
+            related_images.append(images_info[1]["filename"])
+        return related_images
+    
+    # Если есть упоминание биселя без конкретной фигуры
+    if any(word in text_to_check for word in ["bisel", "geometría"]) and "figura" not in text_to_check:
+        related_images.extend([images_info[0]["filename"], images_info[-1]["filename"]])
+        return related_images
+    
+    # Если спрашивают показать все диаграммы
+    if any(word in text_to_check for word in ["todas las figuras", "mostrar todas", "ver todas"]):
+        return [img["filename"] for img in images_info]
+    
+    # Fallback: если AI не может показать, показываем первое изображение
+    if any(phrase in answer.lower() for phrase in ["no tengo acceso", "no dispongo", "no puedo mostrar"]):
+        if any(word in text_to_check for word in ["figura", "imagen", "diagrama"]):
             related_images.append(images_info[0]["filename"])
     
-    # Убираем дубликаты
-    return list(set(related_images))
+    return related_images
 
 # --- llm --------------------------------------------------------------------
 llm = AzureChatOpenAI(
