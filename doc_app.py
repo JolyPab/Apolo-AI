@@ -96,8 +96,11 @@ if prompt := st.chat_input("Pregúntame sobre el documento…"):
         message_placeholder.markdown("🤔 Pensando...")
         
         # Получаем ответ
-        result = qa.invoke({"question": prompt})
-        respuesta = result["answer"]
+        try:
+            result = qa.invoke({"question": prompt})
+            respuesta = result["answer"]
+        except Exception as e:
+            respuesta = f"❌ Error: {str(e)}\n\nRevisa las claves de Azure OpenAI en los secretos."
         
         # Отображаем ответ
         message_placeholder.markdown(respuesta)
