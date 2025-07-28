@@ -1,0 +1,20 @@
+[
+  {
+    "filename": "image_1.png",
+    "path": "doc_faiss_images\\image_1.png",
+    "size": 383856,
+    "description": "Imagen 1 del documento"
+  },
+  {
+    "filename": "image_2.emf",
+    "path": "doc_faiss_images\\image_2.emf",
+    "size": 101488,
+    "description": "Imagen 2 del documento"
+  },
+  {
+    "filename": "image_3.png",
+    "path": "doc_faiss_images\\image_3.png",
+    "size": 458594,
+    "description": "Imagen 3 del documento"
+  }
+]
