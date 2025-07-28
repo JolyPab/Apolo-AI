@@ -24,6 +24,27 @@ docx_path = sys.argv[1]
 index_dir = sys.argv[2] if len(sys.argv) > 2 else "doc_faiss"
 images_dir = f"{index_dir}_images"
 
+def convert_unsupported_image(image_data, original_ext):
+    """Конвертирует неподдерживаемые форматы в PNG"""
+    try:
+        from PIL import Image
+        import io
+        
+        # Пробуем открыть как изображение
+        img = Image.open(io.BytesIO(image_data))
+        
+        # Конвертируем в PNG
+        png_buffer = io.BytesIO()
+        # Для EMF/WMF может потребоваться особая обработка
+        if img.mode in ('RGBA', 'LA', 'P'):
+            img = img.convert('RGB')
+        img.save(png_buffer, format='PNG')
+        
+        return png_buffer.getvalue(), 'png'
+    except Exception as e:
+        print(f"  ⚠️ No se pudo convertir imagen {original_ext}: {e}")
+        return image_data, original_ext
+
 # --- env & embeddings -------------------------------------------------------
 load_dotenv()
 embeddings_model = AzureOpenAIEmbeddings(
@@ -55,7 +76,12 @@ for rel in doc.part.rels.values():
     if "image" in rel.target_ref:
         try:
             image_data = rel.target_part.blob
-            image_ext = rel.target_ref.split('.')[-1]
+            image_ext = rel.target_ref.split('.')[-1].lower()
+            
+            # Конвертируем неподдерживаемые форматы
+            if image_ext in ['emf', 'wmf']:
+                image_data, image_ext = convert_unsupported_image(image_data, image_ext)
+            
             image_filename = f"image_{len(image_info)+1}.{image_ext}"
             image_path = os.path.join(images_dir, image_filename)
             

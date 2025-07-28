@@ -155,8 +155,17 @@ with st.sidebar:
         for i, img_info in enumerate(images_info):
             img_path = os.path.join(IMAGES_DIR, img_info["filename"])
             if os.path.exists(img_path):
-                with st.expander(f"Imagen {i+1} ({img_info['size']} bytes)"):
-                    st.image(img_path, use_container_width=True)
+                # Проверяем, поддерживается ли формат Streamlit
+                file_ext = img_info["filename"].lower().split('.')[-1]
+                if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg']:
+                    with st.expander(f"Imagen {i+1} ({img_info['size']} bytes)"):
+                        try:
+                            st.image(img_path, use_container_width=True)
+                        except Exception as e:
+                            st.error(f"No se puede mostrar la imagen: {img_info['filename']}")
+                else:
+                    with st.expander(f"Imagen {i+1} ({img_info['size']} bytes) - {file_ext.upper()}"):
+                        st.warning(f"Formato {file_ext.upper()} no soportado para vista previa. Archivo: {img_info['filename']}")
     else:
         st.markdown("🖼️ **Imágenes:** No encontradas")
     
@@ -203,8 +212,18 @@ if prompt := st.chat_input("Pregúntame sobre el documento…"):
                 for i, img_filename in enumerate(related_images):
                     img_path = os.path.join(IMAGES_DIR, img_filename)
                     if os.path.exists(img_path):
-                        with cols[i % 3]:
-                            st.image(img_path, caption=f"Imagen {i+1}", use_container_width=True)
+                        # Проверяем формат файла
+                        file_ext = img_filename.lower().split('.')[-1]
+                        if file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg']:
+                            with cols[i % 3]:
+                                try:
+                                    st.image(img_path, caption=f"Imagen {i+1}", use_container_width=True)
+                                except Exception as e:
+                                    st.error(f"Error mostrando {img_filename}")
+                        else:
+                            with cols[i % 3]:
+                                st.warning(f"Formato {file_ext.upper()} no soportado")
+                                st.caption(f"Archivo: {img_filename}")
                             
         except Exception as e:
             respuesta = f"❌ Error: {str(e)}\n\nRevisa las claves de Azure OpenAI en los secretos."
