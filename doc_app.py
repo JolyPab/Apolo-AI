@@ -37,56 +37,30 @@ def get_related_images(question, answer):
     if not images_info:
         return []
     
-    # Создаём описания изображений для AI
-    images_desc = []
-    for i, img in enumerate(images_info):
-        images_desc.append(f"Imagen {i+1}: {img['filename']} - {img.get('description', 'Imagen del documento')}")
+    # Расширенный список ключевых слов для поиска
+    keywords = [
+        "figura", "imagen", "diagrama", "esquema", "gráfico", 
+        "detalle", "geometría", "bisel", "junta", "soldadura",
+        "procedimiento", "paso", "proceso", "visual", "mostrar",
+        "ver", "observar", "ilustra", "representa", "muestra"
+    ]
     
-    images_list = "\n".join(images_desc)
+    text_to_check = (question + " " + answer).lower()
     
-    prompt_analisis = f"""
-Analiza si alguna de estas imágenes del documento es relevante para la pregunta y respuesta dadas.
-
-IMÁGENES DISPONIBLES:
-{images_list}
-
-PREGUNTA DEL USUARIO: {question}
-
-RESPUESTA DADA: {answer}
-
-¿Qué imágenes (si hay alguna) serían útiles mostrar al usuario para complementar esta respuesta?
-
-Responde SOLO con los números de las imágenes relevantes separados por comas (ej: "1,3") o "ninguna" si no hay imágenes relevantes.
-"""
+    # Если есть любое упоминание визуальных элементов, показываем изображения
+    if any(keyword in text_to_check for keyword in keywords):
+        return [img["filename"] for img in images_info]
     
-    try:
-        # Usamos el mismo LLM para analizar
-        analysis = llm.invoke(prompt_analisis).content.strip().lower()
-        
-        if "ninguna" in analysis or not analysis:
-            return []
-        
-        # Extraemos números de imágenes
-        import re
-        numbers = re.findall(r'\d+', analysis)
-        related_images = []
-        
-        for num in numbers:
-            idx = int(num) - 1  # convertir a 0-based index
-            if 0 <= idx < len(images_info):
-                related_images.append(images_info[idx]["filename"])
-        
-        return related_images
-        
-    except Exception as e:
-        # Fallback: если AI-анализ не работает, используем простую эвристику
-        keywords = ["esquema", "diagrama", "figura", "imagen", "gráfico", "procedimiento", "paso", "proceso"]
-        text_to_check = (question + " " + answer).lower()
-        
-        if any(keyword in text_to_check for keyword in keywords):
-            return [img["filename"] for img in images_info[:2]]  # показываем первые 2
-        
-        return []
+    # Дополнительная проверка - если в вопросе есть "figura" + число
+    import re
+    if re.search(r'figura\s*\d+', text_to_check):
+        return [img["filename"] for img in images_info]
+    
+    # Если AI упоминает что не может показать или нет доступа к визуальным деталям
+    if any(phrase in answer.lower() for phrase in ["no tengo acceso", "no dispongo", "no puedo mostrar", "revisar el documento"]):
+        return [img["filename"] for img in images_info]
+    
+    return []
 
 # --- llm --------------------------------------------------------------------
 llm = AzureChatOpenAI(
