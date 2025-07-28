@@ -8,4 +8,9 @@ streamlit
 langchain-community
 langchain-openai
 flask
-twilio
+python-dotenv
+gunicorn
+
+python-docx
+
+tqdm
