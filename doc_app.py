@@ -7,7 +7,6 @@ from langchain.prompts import PromptTemplate
 from datetime import datetime
 import os
 import json
-import base64
 from dotenv import load_dotenv
 
 # --- env --------------------------------------------------------------------
@@ -32,51 +31,6 @@ images_info_path = os.path.join(IMAGES_DIR, "images_info.json")
 if os.path.exists(images_info_path):
     with open(images_info_path, "r", encoding="utf-8") as f:
         images_info = json.load(f)
-
-def encode_image_to_base64(image_path):
-    """Кодирует изображение в base64 для Vision API"""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode('utf-8')
-
-def analyze_image_with_vision(image_path, question):
-    """Анализирует изображение с помощью GPT-4V"""
-    try:
-        # Создаём клиент для Vision API
-        vision_llm = AzureChatOpenAI(
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            azure_deployment=os.getenv("AZURE_VISION_DEPLOYMENT", "gpt-4-vision"),  # используем переменную окружения
-            api_version="2024-02-15-preview",
-            max_tokens=500
-        )
-        
-        # Кодируем изображение
-        base64_image = encode_image_to_base64(image_path)
-        
-        # Создаём сообщение с изображением
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Analiza esta imagen del documento técnico y responde: {question}. Describe qué se muestra en la imagen de manera detallada y técnica."
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{base64_image}"
-                        }
-                    }
-                ]
-            }
-        ]
-        
-        response = vision_llm.invoke(messages)
-        return response.content
-        
-    except Exception as e:
-        return f"No se pudo analizar la imagen: {str(e)}"
 
 def get_related_images(question, answer):
     """Определяет, какие изображения связаны с вопросом/ответом"""
@@ -132,21 +86,36 @@ llm = AzureChatOpenAI(
 # --- prompt -----------------------------------------------------------------
 current_date = datetime.now().strftime("%Y-%m-%d")
 TEMPLATE = """
-Eres un asistente técnico. Responde únicamente basándote en el contenido del documento proporcionado.
-Si la pregunta no está relacionada o la información no se encuentra en el documento, responde educadamente que no dispones de datos.
+Eres un MAESTRO SOLDADOR EXPERIMENTADO que ayuda a los trabajadores de la planta. Tu trabajo es enseñar y guiar, no solo buscar información.
 
-El documento también contiene {num_images} imágenes/diagramas que pueden ser relevantes para las consultas.
+MENTALIDAD: Eres como un supervisor veterano que conoce todos los procedimientos y ayuda a los nuevos trabajadores.
+
+CUANDO TE PREGUNTEN:
+- Explica paso a paso lo que debe hacer el trabajador
+- Da consejos prácticos basados en el documento
+- Si no tienes detalles exactos, proporciona principios generales de soldadura
+- Relaciona la información con la experiencia práctica
+- Siempre intenta ayudar y guiar, nunca digas solo "no tengo información"
+
+EJEMPLO DE RESPUESTA BUENA:
+"Para la geometría del bisel según Figura 1, debes preparar el material siguiendo estas especificaciones... Aunque no veo todos los detalles específicos, en general para este tipo de trabajo necesitas... Te recomiendo revisar la imagen adjunta y..."
+
+EJEMPLO DE RESPUESTA MALA:
+"No tengo información específica sobre la figura."
+
+El documento contiene {num_images} imágenes técnicas que te ayudarán a entender mejor los procedimientos.
 
 Fecha actual: {current_date}
-
-Historial del diálogo:
-{chat_history}
 
 Contexto del documento:
 {context}
 
-Pregunta del usuario: {question}
-Respuesta:
+Historial del diálogo:
+{chat_history}
+
+Pregunta del trabajador: {question}
+
+Respuesta del maestro soldador:
 """
 PROMPT = PromptTemplate(
     input_variables=["context", "chat_history", "current_date", "question", "num_images"],
@@ -231,26 +200,6 @@ if prompt := st.chat_input("Pregúntame sobre el documento…"):
         try:
             result = qa.invoke({"question": prompt})
             respuesta = result["answer"]
-            
-            # Проверяем, нужен ли анализ конкретной фигуры с помощью Vision API
-            vision_analysis = ""
-            if any(phrase in prompt.lower() for phrase in ["figura 1", "figura 2", "figura 3", "qué muestra", "describe la imagen"]):
-                # Определяем какое изображение анализировать
-                image_to_analyze = None
-                if "figura 1" in prompt.lower() and len(images_info) > 0:
-                    image_to_analyze = os.path.join(IMAGES_DIR, images_info[0]["filename"])
-                elif "figura 2" in prompt.lower() and len(images_info) > 1:
-                    image_to_analyze = os.path.join(IMAGES_DIR, images_info[1]["filename"])
-                elif "figura 3" in prompt.lower() and len(images_info) > 2:
-                    image_to_analyze = os.path.join(IMAGES_DIR, images_info[2]["filename"])
-                
-                if image_to_analyze and os.path.exists(image_to_analyze):
-                    with st.status("🔍 Analizando imagen con GPT-4V...", expanded=False):
-                        vision_analysis = analyze_image_with_vision(image_to_analyze, prompt)
-                    
-                    # Комбинируем ответ из текста и анализ изображения
-                    if vision_analysis and "No se pudo analizar" not in vision_analysis:
-                        respuesta = f"{respuesta}\n\n**📸 Análisis de la imagen:**\n{vision_analysis}"
             
             # Проверяем, нужно ли показать связанные изображения
             related_images = get_related_images(prompt, respuesta)
