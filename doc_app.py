@@ -61,6 +61,10 @@ if "memory" not in st.session_state:
         return_messages=True,
     )
 
+# --- chat history -----------------------------------------------------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
 qa = ConversationalRetrievalChain.from_llm(
     llm=llm,
     retriever=index.as_retriever(search_kwargs={"k": 20}),
@@ -70,15 +74,39 @@ qa = ConversationalRetrievalChain.from_llm(
 
 # --- UI ---------------------------------------------------------------------
 st.set_page_config(page_title="Asistente Documento", page_icon="📄")
-st.sidebar.markdown("# 📄 Asistente del Documento")
+st.title("📄 Asistente del Documento")
 
-content_container = st.container()
-query = st.chat_input("Pregúntame sobre el documento…")
+# Отображение истории чата
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-if query:
-    result = qa({"question": query})
-    respuesta = result["answer"]
+# Поле ввода
+if prompt := st.chat_input("Pregúntame sobre el documento…"):
+    # Добавляем сообщение пользователя в историю
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-    with content_container:
-        st.subheader("📑 Respuesta:")
-        st.write(respuesta) 
+    # Получаем ответ от AI
+    with st.chat_message("assistant"):
+        message_placeholder = st.empty()
+        
+        # Показываем индикатор загрузки
+        message_placeholder.markdown("🤔 Pensando...")
+        
+        # Получаем ответ
+        result = qa.invoke({"question": prompt})
+        respuesta = result["answer"]
+        
+        # Отображаем ответ
+        message_placeholder.markdown(respuesta)
+    
+    # Добавляем ответ AI в историю
+    st.session_state.messages.append({"role": "assistant", "content": respuesta})
+
+# Кнопка очистки истории
+if st.sidebar.button("🗑️ Limpiar historial"):
+    st.session_state.messages = []
+    st.session_state["memory"].clear()
+    st.rerun() 
