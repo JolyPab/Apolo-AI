@@ -6,6 +6,7 @@ from langchain_community.vectorstores import FAISS
 from langchain.prompts import PromptTemplate
 from datetime import datetime
 import os
+import json
 from dotenv import load_dotenv
 
 # --- env --------------------------------------------------------------------
@@ -20,7 +21,15 @@ embeddings = AzureOpenAIEmbeddings(
 )
 
 INDEX_DIR = "doc_faiss"  # предполагается, что индекс создан заранее
+IMAGES_DIR = f"{INDEX_DIR}_images"
 index = FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=True)
+
+# --- load images info -------------------------------------------------------
+images_info = []
+images_info_path = os.path.join(IMAGES_DIR, "images_info.json")
+if os.path.exists(images_info_path):
+    with open(images_info_path, "r", encoding="utf-8") as f:
+        images_info = json.load(f)
 
 # --- llm --------------------------------------------------------------------
 llm = AzureChatOpenAI(
@@ -36,6 +45,8 @@ TEMPLATE = """
 Eres un asistente técnico. Responde únicamente basándote en el contenido del documento proporcionado.
 Si la pregunta no está relacionada o la información no se encuentra en el documento, responde educadamente que no dispones de datos.
 
+El documento también contiene {num_images} imágenes/diagramas que pueden ser relevantes para las consultas.
+
 Fecha actual: {current_date}
 
 Historial del diálogo:
@@ -48,9 +59,9 @@ Pregunta del usuario: {question}
 Respuesta:
 """
 PROMPT = PromptTemplate(
-    input_variables=["context", "chat_history", "current_date", "question"],
+    input_variables=["context", "chat_history", "current_date", "question", "num_images"],
     template=TEMPLATE,
-).partial(current_date=current_date)
+).partial(current_date=current_date, num_images=len(images_info))
 
 # --- memory & chain ---------------------------------------------------------
 if "memory" not in st.session_state:
@@ -75,6 +86,28 @@ qa = ConversationalRetrievalChain.from_llm(
 # --- UI ---------------------------------------------------------------------
 st.set_page_config(page_title="Asistente Documento", page_icon="📄")
 st.title("📄 Asistente del Documento")
+
+# Показать информацию о документе в сайдбаре
+with st.sidebar:
+    st.markdown("### 📋 Información del documento")
+    if images_info:
+        st.markdown(f"🖼️ **Imágenes encontradas:** {len(images_info)}")
+        
+        # Показать превью изображений
+        st.markdown("### 🖼️ Imágenes del documento")
+        for i, img_info in enumerate(images_info):
+            img_path = os.path.join(IMAGES_DIR, img_info["filename"])
+            if os.path.exists(img_path):
+                with st.expander(f"Imagen {i+1} ({img_info['size']} bytes)"):
+                    st.image(img_path, use_container_width=True)
+    else:
+        st.markdown("🖼️ **Imágenes:** No encontradas")
+    
+    # Кнопка очистки истории
+    if st.button("🗑️ Limpiar historial"):
+        st.session_state.messages = []
+        st.session_state["memory"].clear()
+        st.rerun()
 
 # Отображение истории чата
 for message in st.session_state.messages:
@@ -106,10 +139,4 @@ if prompt := st.chat_input("Pregúntame sobre el documento…"):
         message_placeholder.markdown(respuesta)
     
     # Добавляем ответ AI в историю
-    st.session_state.messages.append({"role": "assistant", "content": respuesta})
-
-# Кнопка очистки истории
-if st.sidebar.button("🗑️ Limpiar historial"):
-    st.session_state.messages = []
-    st.session_state["memory"].clear()
-    st.rerun() 
+    st.session_state.messages.append({"role": "assistant", "content": respuesta}) 
