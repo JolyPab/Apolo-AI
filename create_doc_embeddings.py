@@ -65,7 +65,8 @@ for rel in doc.part.rels.values():
             image_info.append({
                 "filename": image_filename,
                 "path": image_path,
-                "size": len(image_data)
+                "size": len(image_data),
+                "description": f"Imagen {len(image_info)+1} del documento"  # AI будет анализировать контекст
             })
             print(f"  ✅ {image_filename} ({len(image_data)} bytes)")
         except Exception as e:

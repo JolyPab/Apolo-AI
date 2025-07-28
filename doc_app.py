@@ -27,9 +27,66 @@ index = FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=
 # --- load images info -------------------------------------------------------
 images_info = []
 images_info_path = os.path.join(IMAGES_DIR, "images_info.json")
+
 if os.path.exists(images_info_path):
     with open(images_info_path, "r", encoding="utf-8") as f:
         images_info = json.load(f)
+
+def get_related_images(question, answer):
+    """Определяет, какие изображения связаны с вопросом/ответом через AI"""
+    if not images_info:
+        return []
+    
+    # Создаём описания изображений для AI
+    images_desc = []
+    for i, img in enumerate(images_info):
+        images_desc.append(f"Imagen {i+1}: {img['filename']} - {img.get('description', 'Imagen del documento')}")
+    
+    images_list = "\n".join(images_desc)
+    
+    prompt_analisis = f"""
+Analiza si alguna de estas imágenes del documento es relevante para la pregunta y respuesta dadas.
+
+IMÁGENES DISPONIBLES:
+{images_list}
+
+PREGUNTA DEL USUARIO: {question}
+
+RESPUESTA DADA: {answer}
+
+¿Qué imágenes (si hay alguna) serían útiles mostrar al usuario para complementar esta respuesta?
+
+Responde SOLO con los números de las imágenes relevantes separados por comas (ej: "1,3") o "ninguna" si no hay imágenes relevantes.
+"""
+    
+    try:
+        # Usamos el mismo LLM para analizar
+        analysis = llm.invoke(prompt_analisis).content.strip().lower()
+        
+        if "ninguna" in analysis or not analysis:
+            return []
+        
+        # Extraemos números de imágenes
+        import re
+        numbers = re.findall(r'\d+', analysis)
+        related_images = []
+        
+        for num in numbers:
+            idx = int(num) - 1  # convertir a 0-based index
+            if 0 <= idx < len(images_info):
+                related_images.append(images_info[idx]["filename"])
+        
+        return related_images
+        
+    except Exception as e:
+        # Fallback: если AI-анализ не работает, используем простую эвристику
+        keywords = ["esquema", "diagrama", "figura", "imagen", "gráfico", "procedimiento", "paso", "proceso"]
+        text_to_check = (question + " " + answer).lower()
+        
+        if any(keyword in text_to_check for keyword in keywords):
+            return [img["filename"] for img in images_info[:2]]  # показываем первые 2
+        
+        return []
 
 # --- llm --------------------------------------------------------------------
 llm = AzureChatOpenAI(
@@ -132,11 +189,26 @@ if prompt := st.chat_input("Pregúntame sobre el documento…"):
         try:
             result = qa.invoke({"question": prompt})
             respuesta = result["answer"]
+            
+            # Проверяем, нужно ли показать связанные изображения
+            related_images = get_related_images(prompt, respuesta)
+            
+            # Отображаем ответ
+            message_placeholder.markdown(respuesta)
+            
+            # Показываем связанные изображения если есть
+            if related_images:
+                st.markdown("### 🖼️ Imágenes relacionadas:")
+                cols = st.columns(min(len(related_images), 3))  # максимум 3 колонки
+                for i, img_filename in enumerate(related_images):
+                    img_path = os.path.join(IMAGES_DIR, img_filename)
+                    if os.path.exists(img_path):
+                        with cols[i % 3]:
+                            st.image(img_path, caption=f"Imagen {i+1}", use_container_width=True)
+                            
         except Exception as e:
             respuesta = f"❌ Error: {str(e)}\n\nRevisa las claves de Azure OpenAI en los secretos."
-        
-        # Отображаем ответ
-        message_placeholder.markdown(respuesta)
+            message_placeholder.markdown(respuesta)
     
     # Добавляем ответ AI в историю
     st.session_state.messages.append({"role": "assistant", "content": respuesta}) 
